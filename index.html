@@ -1,0 +1,238 @@
+ <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scholar OS v24 | Command & Focus</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;600;800&family=JetBrains+Mono:wght@500;800&display=swap" rel="stylesheet">
+    
+    <!-- PWA Connection Lines -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#3b82f6">
+
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('sw.js');
+        });
+      }
+    </script>
+    
+    <style>
+        :root { --bg: #070b14; --accent: #3b82f6; }
+        body { background-color: var(--bg); color: #f8fafc; font-family: 'Inter', sans-serif; overflow: hidden; height: 100vh; }
+        .heading-font { font-family: 'Lexend', sans-serif; }
+        .mono-font { font-family: 'JetBrains Mono', monospace; }
+        .dashboard { display: none; height: calc(100vh - 100px); overflow-y: auto; padding-bottom: 100px; }
+        .dashboard.active { display: block; animation: fadeIn 0.4s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .pill-card { background-color: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 9999px; padding: 18px 25px; transition: 0.3s; }
+        .pill-card:hover { border-color: var(--accent); background: rgba(59, 130, 246, 0.1); }
+        .checkbox-round { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #334155; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .checkbox-round.active { background-color: var(--accent); border-color: var(--accent); }
+        .glass { background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.03); border-radius: 35px; }
+        .dock { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(15, 23, 42, 0.9); padding: 12px 30px; border-radius: 50px; border: 1px solid rgba(255, 255, 255, 0.05); display: flex; gap: 40px; z-index: 1000; }
+        .nav-icon { font-size: 20px; color: #334155; transition: 0.3s; cursor: pointer; }
+        .nav-icon.active { color: var(--accent); text-shadow: 0 0 15px var(--accent); }
+        @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.02); } }
+        .timer-running { animation: pulse 2s infinite ease-in-out; color: var(--accent); }
+    </style>
+</head>
+<body onload="initSystem()">
+
+    <!-- NOTIFICATION ALERT -->
+    <div id="mission-alert" class="fixed inset-0 bg-black/95 z-[5000] hidden flex-col items-center justify-center text-center p-6">
+        <div class="text-blue-500 text-7xl mb-6"><i class="fas fa-bullhorn"></i></div>
+        <h2 class="heading-font text-4xl font-black text-white mb-2 italic">MISSION COMPLETE</h2>
+        <p id="alert-msg" class="text-slate-400 text-lg mb-10 max-w-md">Time to transition to the next block, Architect.</p>
+        <button onclick="dismissAlert()" class="bg-blue-600 text-white px-12 py-4 rounded-full font-black hover:bg-white hover:text-black transition-all">ACKNOWLEDGE</button>
+    </div>
+
+    <!-- HEADER -->
+    <header class="p-6 max-w-6xl mx-auto flex justify-between items-center">
+        <div>
+            <!-- YOUR SVG LOGO -->
+            <div class="mb-1">
+                <svg width="200" height="50" viewBox="0 0 400 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="10" y="20" width="60" height="60" rx="12" fill="url(#paint0_linear)" />
+                    <path d="M40 35C33 35 30 38 30 42C30 48 50 46 50 54C50 58 47 61 40 61C33 61 30 58 30 58" stroke="white" stroke-width="6" stroke-linecap="round"/>
+                    <text x="85" y="65" font-family="Lexend, sans-serif" font-weight="800" font-size="38" letter-spacing="-1" fill="#FFFFFF">SCHOLA<tspan fill="#3B82F6">ROS</tspan></text>
+                    <text x="87" y="82" font-family="Arial, sans-serif" font-weight="500" font-size="12" letter-spacing="2" fill="#6B7280">ACADEMIC OPERATING SYSTEM</text>
+                    <defs><linearGradient id="paint0_linear" x1="10" y1="20" x2="70" y2="80" gradientUnits="userSpaceOnUse"><stop stop-color="#2563EB"/><stop offset="1" stop-color="#1E40AF"/></linearGradient></defs>
+                </svg>
+            </div>
+            <div id="day-badge" class="text-[9px] font-bold text-slate-600 tracking-[3px] uppercase ml-1">DETECTING CYCLE...</div>
+        </div>
+        <div class="text-right flex flex-col items-end">
+            <div id="clock-container" class="mono-font text-2xl md:text-4xl font-black text-white tracking-tighter italic">00:00:00 PM</div>
+            <div id="date-text" class="text-[10px] font-bold text-slate-500 uppercase tracking-[3px] mt-1">LOADING DATE...</div>
+        </div>
+    </header>
+
+    <!-- DASHBOARD 1: HOME -->
+    <section id="dash-home" class="dashboard active max-w-6xl mx-auto px-6">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div class="lg:col-span-5 space-y-6">
+                <div class="glass p-8 relative">
+                    <div class="absolute top-0 right-0 p-6 opacity-5"><i class="fas fa-shield-halved text-6xl"></i></div>
+                    <p class="text-[10px] font-black text-blue-500 tracking-[3px] uppercase mb-2">Active Protocol</p>
+                    <h2 id="current-task" class="heading-font text-2xl font-bold">Scanning...</h2>
+                    <p id="current-note" class="text-xs text-slate-500 mt-2 italic">Synchronizing with real-time schedule.</p>
+                    <div class="mt-8">
+                        <div class="flex justify-between text-[10px] font-bold text-slate-600 uppercase mb-2"><span id="task-start">--:--</span><span id="task-end">--:--</span></div>
+                        <div class="w-full bg-slate-800/50 h-1 rounded-full overflow-hidden"><div id="task-progress" class="bg-blue-500 h-full transition-all duration-1000" style="width: 0%"></div></div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="glass p-6 text-center"><div id="streak-val" class="heading-font text-3xl font-black">0</div><div class="text-[9px] font-bold text-slate-600 uppercase mt-1">Streak</div></div>
+                    <div class="glass p-6 text-center border-b-4 border-blue-500"><div id="efficiency-val" class="heading-font text-3xl font-black text-blue-500">0%</div><div class="text-[9px] font-bold text-slate-600 uppercase mt-1">Efficiency</div></div>
+                </div>
+            </div>
+            <div class="lg:col-span-7 space-y-10">
+                <div>
+                    <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-[4px] mb-6 px-2">Cycle Timeline</h3>
+                    <div id="timeline" class="space-y-4"></div>
+                </div>
+                <div class="pt-8 border-t border-slate-800/50">
+                    <div class="flex justify-between items-center px-2 mb-6"><h3 class="text-[10px] font-black text-slate-500 uppercase tracking-[4px]">Priority Goals</h3><button onclick="addGoal()" class="text-blue-500 text-[10px] font-black uppercase">+ Add Goal</button></div>
+                    <div id="goals-list" class="space-y-3"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- DASHBOARD 2: FOCUS CLOCK -->
+    <section id="dash-clock" class="dashboard max-w-6xl mx-auto px-6">
+        <div class="h-full flex flex-col items-center justify-center -mt-10">
+            <div class="glass p-10 md:p-16 w-full max-w-2xl text-center">
+                <div class="text-[11px] font-black text-blue-500 tracking-[5px] uppercase mb-8">Independent Focus Sprint</div>
+                <div id="display-90" class="heading-font text-7xl sm:text-8xl md:text-[120px] font-extrabold tracking-tighter leading-none mono-font text-white mb-10">90:00</div>
+                <div class="flex justify-center gap-6">
+                    <button id="timer-toggle" onclick="toggle90Timer()" class="bg-blue-600 text-white px-10 py-4 rounded-full font-black hover:bg-white hover:text-black transition-all">START SPRINT</button>
+                    <button onclick="reset90Timer()" class="bg-slate-800 text-slate-400 px-8 py-4 rounded-full font-black hover:text-white transition-all"><i class="fas fa-undo"></i></button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <nav class="dock">
+        <div id="nav-home" class="nav-icon active" onclick="switchDash('home')"><i class="fas fa-th-large"></i></div>
+        <div id="nav-clock" class="nav-icon" onclick="switchDash('clock')"><i class="fas fa-stopwatch"></i></div>
+    </nav>
+
+    <script>
+        const Routine = {
+            regular: [
+                { s: "05:00", e: "05:15", t: "Wake Up & Hydrate", n: "Splash water, 2 glasses of water." },
+                { s: "05:15", e: "07:15", t: "Deep Work Block 1", n: "Math / Science Theory (Fresh Brain)" },
+                { s: "07:15", e: "08:00", t: "Scholarship Special (MAT)", n: "Logical Reasoning & Puzzles" },
+                { s: "08:00", e: "09:00", t: "Language Drill", n: "Sanskrit / English / Bengal Drill" },
+                { s: "09:00", e: "09:30", t: "Breakfast", n: "High protein. No devices." },
+                { s: "10:30", e: "17:00", t: "School Mission", n: "Active listening. Finish HW in free periods." },
+                { s: "17:00", e: "18:00", t: "Decompress & Play", n: "Cycle, run, or sport. Essential for brain." },
+                { s: "18:00", e: "20:00", t: "Deep Work Block 2", n: "History / Geography (Active Recall)" },
+                { s: "20:00", e: "21:00", t: "Math Mastery", n: "Solve 20-30 problems. Speed test." },
+                { s: "21:30", e: "22:00", t: "IIT-Style Review", n: "Plan tomorrow's Top 3 Goals" },
+                { s: "22:00", e: "23:59", t: "Sleep Mode", n: "7-hour recovery for memory." }
+            ],
+            tuition: [
+                { s: "05:30", e: "06:30", t: "Tuition Prep", n: "Quick revision of tuition homework." },
+                { s: "06:30", e: "09:00", t: "Tuition Session", n: "Math/Science. Be most active student." },
+                { s: "09:00", e: "09:30", t: "Breakfast", n: "Fuel for the day." },
+                { s: "10:30", e: "17:00", t: "School Mission", n: "Homework finishing in free periods." },
+                { s: "18:00", e: "20:00", t: "Tuition Revision", n: "Revise what was taught this morning." },
+                { s: "20:00", e: "21:00", t: "Math Practice", n: "Solve 20-30 problems." }
+            ],
+            sunday: [
+                { s: "07:00", e: "09:30", t: "Full Mock Test", n: "Scholarship Simulator (MAT + SAT)" },
+                { s: "10:00", e: "12:00", t: "Sunday Tuition", n: "Active questioning session." },
+                { s: "12:00", e: "14:00", t: "Nap & Recovery", n: "Essential brain rest." },
+                { s: "18:00", e: "20:30", t: "Error Analysis", n: "Fix Mock Test mistakes immediately." }
+            ]
+        };
+
+        let currentRoutine = [];
+        let goals = JSON.parse(localStorage.getItem('scholar_goals_v24')) || [{ id: 1, t: "Finish Math HW", d: false }];
+        let timer90 = 90 * 60, isTimerRunning = false, timerInterval = null;
+
+        function format12h(time24) {
+            let [h, m] = time24.split(':');
+            let ampm = h >= 12 ? 'PM' : 'AM';
+            h = h % 12 || 12;
+            return `${h.toString().padStart(2, '0')}:${m} ${ampm}`;
+        }
+
+        function updateClock() {
+            const now = new Date();
+            let hours = now.getHours(), mins = now.getMinutes().toString().padStart(2, '0'), secs = now.getSeconds().toString().padStart(2, '0'), ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = (hours % 12 || 12).toString().padStart(2, '0');
+            document.getElementById('clock-container').innerHTML = `${hours}:${mins}<span class="text-xl opacity-40">:${secs}</span> <span class="text-sm text-blue-500 font-black ml-1">${ampm}</span>`;
+            document.getElementById('date-text').innerText = now.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' }).toUpperCase();
+            updateMission(now);
+            if (now.getSeconds() === 0) currentRoutine.forEach(m => { if (m.e === now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0')) triggerAlert(m.t); });
+        }
+
+        function updateMission(now) {
+            const timeVal = now.getHours() * 100 + now.getMinutes();
+            let active = currentRoutine.find(m => { const s = parseInt(m.s.replace(':', '')), e = parseInt(m.e.replace(':', '')); return timeVal >= s && timeVal < e; });
+            if (active) {
+                document.getElementById('current-task').innerText = active.t;
+                document.getElementById('current-note').innerText = active.n;
+                document.getElementById('task-start').innerText = format12h(active.s);
+                document.getElementById('task-end').innerText = format12h(active.e);
+                const startMin = parseInt(active.s.split(':')[0]) * 60 + parseInt(active.s.split(':')[1]), endMin = parseInt(active.e.split(':')[0]) * 60 + parseInt(active.e.split(':')[1]), nowMin = now.getHours() * 60 + now.getMinutes();
+                document.getElementById('task-progress').style.width = ((nowMin - startMin) / (endMin - startMin) * 100) + '%';
+            }
+        }
+
+        function triggerAlert(task) { document.getElementById('alert-msg').innerText = `${task} is finished. Transition immediately.`; document.getElementById('mission-alert').style.display = 'flex'; new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play(); }
+        function dismissAlert() { document.getElementById('mission-alert').style.display = 'none'; }
+        
+        function switchDash(target) {
+            document.querySelectorAll('.dashboard').forEach(d => { d.classList.remove('active'); d.style.display = 'none'; });
+            document.querySelectorAll('.nav-icon').forEach(n => n.classList.remove('active'));
+            const d = document.getElementById('dash-' + target); d.style.display = 'block'; setTimeout(() => d.classList.add('active'), 10);
+            document.getElementById('nav-' + target).classList.add('active');
+        }
+
+        function toggle90Timer() {
+            const btn = document.getElementById('timer-toggle'), disp = document.getElementById('display-90');
+            if (isTimerRunning) { clearInterval(timerInterval); btn.innerText = "RESUME SPRINT"; disp.classList.remove('timer-running'); }
+            else { timerInterval = setInterval(() => { if (timer90 <= 0) { clearInterval(timerInterval); triggerAlert("90-Min Focus"); reset90Timer(); return; } timer90--; updateTimerDisplay(); }, 1000); btn.innerText = "PAUSE FOCUS"; disp.classList.add('timer-running'); }
+            isTimerRunning = !isTimerRunning;
+        }
+        function reset90Timer() { clearInterval(timerInterval); isTimerRunning = false; timer90 = 90 * 60; updateTimerDisplay(); document.getElementById('timer-toggle').innerText = "START SPRINT"; document.getElementById('display-90').classList.remove('timer-running'); }
+        function updateTimerDisplay() { const m = Math.floor(timer90 / 60), s = timer90 % 60; document.getElementById('display-90').innerText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`; }
+
+        function renderTimeline() {
+            document.getElementById('timeline').innerHTML = currentRoutine.map(m => `
+                <div class="flex items-center space-x-6 p-5 bg-slate-900/40 rounded-[30px] border border-transparent hover:border-blue-500/30 transition-all group">
+                    <div class="w-20 text-[11px] font-black text-blue-500 mono-font">${format12h(m.s)}</div>
+                    <div class="flex-1"><div class="text-sm font-bold text-slate-200 group-hover:text-white">${m.t}</div><div class="text-[10px] text-slate-500 mt-1 italic font-medium">${m.n}</div></div>
+                </div>`).join('');
+        }
+
+        function renderGoals() {
+            document.getElementById('goals-list').innerHTML = goals.map(g => `
+                <div class="pill-card flex items-center justify-between">
+                    <span class="text-sm font-bold ${g.d ? 'line-through text-slate-600' : 'text-slate-200'}">${g.t}</span>
+                    <div class="checkbox-round ${g.d ? 'active' : ''}" onclick="toggleGoal(${g.id})">${g.d ? '<i class="fas fa-check text-[10px] text-white"></i>' : ''}</div>
+                </div>`).join('');
+            const pct = goals.length > 0 ? Math.round((goals.filter(g => g.d).length / goals.length) * 100) : 0;
+            document.getElementById('efficiency-val').innerText = pct + '%';
+        }
+
+        function toggleGoal(id) { const g = goals.find(x => x.id === id); g.d = !g.d; localStorage.setItem('scholar_goals_v24', JSON.stringify(goals)); renderGoals(); }
+        function addGoal() { const t = prompt("Priority Goal:"); if (t) { goals.push({ id: Date.now(), t: t, d: false }); localStorage.setItem('scholar_goals_v24', JSON.stringify(goals)); renderGoals(); } }
+
+        function initSystem() {
+            const day = new Date().getDay();
+            if (day === 0) currentRoutine = Routine.sunday; else if (day === 2 || day === 4) currentRoutine = Routine.tuition; else currentRoutine = Routine.regular;
+            document.getElementById('day-badge').innerText = new Date().toLocaleDateString('en-US', { weekday: 'long' }) + " Cycle Active";
+            renderTimeline(); renderGoals(); updateClock(); setInterval(updateClock, 1000);
+        }
+    </script>
+</body>
+</html>
